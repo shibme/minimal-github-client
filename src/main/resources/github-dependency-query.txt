@@ -1,0 +1,34 @@
+{
+    repository(name: ${repoName}, owner: ${owner}) {
+        id
+        dependencyGraphManifests {
+            totalCount
+            nodes {
+                blobPath
+                dependencies(first: ${dependencies.first}, after: ${dependencies.after}) {
+                    nodes {
+                        packageName
+                        requirements
+                        hasDependencies
+                        packageManager
+                    }
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                        startCursor
+                        hasPreviousPage
+                    }
+                }
+                dependenciesCount
+                exceedsMaxSize
+                filename
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+                startCursor
+                hasPreviousPage
+            }
+        }
+    }
+}

@@ -1,0 +1,51 @@
+{
+    repository(name: ${repoName}, owner: ${owner}) {
+        id
+        vulnerabilityAlerts(first: ${vulnerabilityAlerts.first}, after: ${vulnerabilityAlerts.after}) {
+            totalCount
+            nodes {
+                securityVulnerability {
+                    severity
+                    updatedAt
+                    vulnerableVersionRange
+                    firstPatchedVersion {
+                        identifier
+                    }
+                    package {
+                        ecosystem
+                        name
+                    }
+                    advisory {
+                        databaseId
+                        description
+                        ghsaId
+                        id
+                        origin
+                        permalink
+                        publishedAt
+                        severity
+                        summary
+                        updatedAt
+                        withdrawnAt
+                        identifiers {
+                            type
+                            value
+                        }
+                    }
+                }
+                vulnerableManifestFilename
+                vulnerableManifestPath
+                vulnerableRequirements
+                createdAt
+                dismissReason
+                id
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+                startCursor
+                hasPreviousPage
+            }
+        }
+    }
+}
