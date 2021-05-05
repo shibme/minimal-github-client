@@ -12,7 +12,7 @@
 
     <issueManagement>
         <url>https://gitlab.com/${project.owner.id}/${project.artifactId}/issues</url>
-        <system>GitLab Issues</system>
+        <system>GitHub Issues</system>
     </issueManagement>
 
     <scm>
@@ -33,15 +33,18 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.owner.id>shibme</project.owner.id>
         <project.jdk.version>8</project.jdk.version>
+        <gitlab.packages.project_id>26425676</gitlab.packages.project_id>
     </properties>
 
     <distributionManagement>
         <repository>
-            <id>bintray-shibme-maven</id>
-            <name>shibme-maven</name>
-            <url>https://api.bintray.com/maven/${project.owner.id}/maven/${project.artifactId}/;publish=1;override=1
-            </url>
+            <id>shibme-gitlab-maven</id>
+            <url>https://gitlab.com/api/v4/projects/${gitlab.packages.project_id}/packages/maven</url>
         </repository>
+        <snapshotRepository>
+            <id>shibme-gitlab-maven</id>
+            <url>https://gitlab.com/api/v4/projects/${gitlab.packages.project_id}/packages/maven</url>
+        </snapshotRepository>
     </distributionManagement>
 
     <build>
