@@ -7,8 +7,8 @@ import me.shib.lib.github.client.models.Repository;
 import me.shib.lib.github.client.models.VulnerabilityData;
 import me.shib.lib.github.client.requests.GetDependenciesRequest;
 import me.shib.lib.github.client.requests.GetVulnerabilityAlertsRequest;
-import me.shib.lib.github.client.responses.GitHubQueryResponse;
 import okhttp3.*;
+import okhttp3.logging.HttpLoggingInterceptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,58 +18,101 @@ import java.util.Map;
 
 public final class GitHubClient {
 
+    private static final String GITHUB_HTTP_LOGGING = System.getenv("GITHUB_HTTP_LOGGING");
+    private static final String GITHUB_TOKEN = System.getenv("GITHUB_TOKEN");
     private static final String githubGraphQLEndpoint = "https://api.github.com/graphql";
+    private static final transient Map<String, GitHubClient> gitHubClientMap = new HashMap<>();
     private static final int perPageCount = 100;
 
-    private final String githubToken;
     private final OkHttpClient client;
     private final Gson gson;
 
-    public GitHubClient(String githubToken) {
-        this.githubToken = githubToken;
-        this.client = new OkHttpClient();
+    private GitHubClient(String githubToken) {
+        OkHttpClient.Builder okHttpClientBuilder = new OkHttpClient.Builder()
+                .addInterceptor(new GitHubClientAuth(githubToken));
+        boolean httpLogging = GITHUB_HTTP_LOGGING != null &&
+                GITHUB_HTTP_LOGGING.equalsIgnoreCase("TRUE");
+        if (httpLogging) {
+            okHttpClientBuilder.addInterceptor(new HttpLoggingInterceptor()
+                    .setLevel(HttpLoggingInterceptor.Level.BODY));
+        }
+        this.client = okHttpClientBuilder.build();
         this.gson = new Gson();
     }
 
-    private GitHubQueryResponse getAdvisories(String owner, String repoName, String after)
-            throws IOException {
-        GetVulnerabilityAlertsRequest getVulnerabilityAlertsRequest =
-                new GetVulnerabilityAlertsRequest(owner, repoName, perPageCount, after);
-        RequestBody body = RequestBody.create(getVulnerabilityAlertsRequest.toRequest(),
-                MediaType.parse("application/json"));
-        Request request = new Request.Builder().post(body).url(githubGraphQLEndpoint)
-                .addHeader("Authorization", "Bearer " + githubToken).build();
-        Response response = client.newCall(request).execute();
-        ResponseBody responseBody = response.body();
-        String responseContent = "";
-        if (responseBody != null) {
-            responseContent = responseBody.string();
+    public static synchronized GitHubClient getInstance(String githubToken) throws GitHubClientException {
+        if (githubToken == null || githubToken.isEmpty()) {
+            throw new GitHubClientException("Please provide a valid GitHub Token");
         }
-        response.close();
-        return gson.fromJson(responseContent, GitHubQueryResponse.class);
+        GitHubClient gitHubClient = gitHubClientMap.get(githubToken);
+        if (gitHubClient == null) {
+            gitHubClient = new GitHubClient(githubToken);
+            gitHubClientMap.put(githubToken, gitHubClient);
+        }
+        return gitHubClient;
+    }
+
+    public static GitHubClient getInstance() throws GitHubClientException {
+        return GitHubClient.getInstance(GITHUB_TOKEN);
+    }
+
+    private GitHubQueryResponse getGitHubQueryResponse(Response response) throws GitHubClientException {
+        try {
+            String responseBody = null;
+            if (response.body() != null) {
+                responseBody = response.body().string();
+            }
+            if (response.code() >= 200 && response.code() <= 250) {
+                GitHubQueryResponse queryResponse = gson.fromJson(responseBody, GitHubQueryResponse.class);
+                if (queryResponse.getErrorInfo() != null) {
+                    response.close();
+                    throw new GitHubClientException(queryResponse.getErrorInfo());
+                }
+                response.close();
+                return queryResponse;
+            } else {
+                GitHubQueryResponse.GitHubClientError error = gson.fromJson(responseBody,
+                        GitHubQueryResponse.GitHubClientError.class);
+                response.close();
+                throw new GitHubClientException(error.toString());
+            }
+        } catch (IOException e) {
+            response.close();
+            throw new GitHubClientException(e);
+        }
+    }
+
+    private GitHubQueryResponse getAdvisories(String owner, String repoName, String after)
+            throws GitHubClientException {
+        try {
+            GetVulnerabilityAlertsRequest getVulnerabilityAlertsRequest =
+                    new GetVulnerabilityAlertsRequest(owner, repoName, perPageCount, after);
+            RequestBody body = RequestBody.create(getVulnerabilityAlertsRequest.toRequest(),
+                    MediaType.parse("application/json"));
+            Request request = new Request.Builder().post(body).url(githubGraphQLEndpoint).build();
+            return getGitHubQueryResponse(client.newCall(request).execute());
+        } catch (IOException e) {
+            throw new GitHubClientException(e);
+        }
     }
 
     private GitHubQueryResponse getDependencyManifest(String owner, String repoName, String afterDependencies)
-            throws IOException {
-        GetDependenciesRequest getDependenciesRequest =
-                new GetDependenciesRequest(owner, repoName, perPageCount, afterDependencies);
-        RequestBody body = RequestBody.create(getDependenciesRequest.toRequest(),
-                MediaType.parse("application/json"));
-        Request request = new Request.Builder().post(body).url(githubGraphQLEndpoint)
-                .addHeader("Authorization", "Bearer " + githubToken)
-                .addHeader("Accept", "application/vnd.github.hawkgirl-preview+json")
-                .build();
-        Response response = client.newCall(request).execute();
-        ResponseBody responseBody = response.body();
-        String responseContent = "";
-        if (responseBody != null) {
-            responseContent = responseBody.string();
+            throws GitHubClientException {
+        try {
+            GetDependenciesRequest getDependenciesRequest =
+                    new GetDependenciesRequest(owner, repoName, perPageCount, afterDependencies);
+            RequestBody body = RequestBody.create(getDependenciesRequest.toRequest(),
+                    MediaType.parse("application/json"));
+            Request request = new Request.Builder().post(body).url(githubGraphQLEndpoint)
+                    .addHeader("Accept", "application/vnd.github.hawkgirl-preview+json")
+                    .build();
+            return getGitHubQueryResponse(client.newCall(request).execute());
+        } catch (IOException e) {
+            throw new GitHubClientException(e);
         }
-        response.close();
-        return gson.fromJson(responseContent, GitHubQueryResponse.class);
     }
 
-    public List<VulnerabilityData> getVulnerabilityDataList(String owner, String repoName) throws IOException {
+    public List<VulnerabilityData> getVulnerabilityDataList(String owner, String repoName) throws GitHubClientException {
         List<VulnerabilityData> vulnerabilityDataList = new ArrayList<>();
         boolean hasNextPage = true;
         String after = null;
@@ -89,7 +132,7 @@ public final class GitHubClient {
         return vulnerabilityDataList;
     }
 
-    public Map<DependencyGraphManifest, List<Dependency>> getDependencyGraph(String owner, String repoName) throws IOException {
+    public Map<DependencyGraphManifest, List<Dependency>> getDependencyGraph(String owner, String repoName) throws GitHubClientException {
         Map<String, List<Dependency>> dependenciesMap = new HashMap<>();
         Map<String, DependencyGraphManifest> dependencyGraphManifestMap = new HashMap<>();
         boolean hasNextPage = true;
