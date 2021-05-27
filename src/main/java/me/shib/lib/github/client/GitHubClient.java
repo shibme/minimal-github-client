@@ -132,6 +132,23 @@ public final class GitHubClient {
         return vulnerabilityDataList;
     }
 
+    public Map<String, Integer> getDependencyCountByManifest(String owner, String repoName) throws GitHubClientException {
+        Map<String, Integer> countByManifest = new HashMap<>();
+        GitHubQueryResponse gitHubQueryResponse = getDependencyManifest(owner, repoName, null);
+        Repository.DependencyGraphManifests dependencyGraphManifests = gitHubQueryResponse.getData()
+                .getRepository().getDependencyGraphManifests();
+        if (dependencyGraphManifests != null) {
+            for (DependencyGraphManifest manifest : dependencyGraphManifests.getNodes()) {
+                countByManifest.put(manifest.getBlobPath(), manifest.getDependenciesCount());
+            }
+        }
+        return countByManifest;
+    }
+
+    public int getDependencyCount(String owner, String repoName) throws GitHubClientException {
+        return getDependencyCountByManifest(owner, repoName).values().stream().mapToInt(Integer::intValue).sum();
+    }
+
     public Map<DependencyGraphManifest, List<Dependency>> getDependencyGraph(String owner, String repoName) throws GitHubClientException {
         Map<String, List<Dependency>> dependenciesMap = new HashMap<>();
         Map<String, DependencyGraphManifest> dependencyGraphManifestMap = new HashMap<>();
@@ -140,31 +157,29 @@ public final class GitHubClient {
         while (hasNextPage) {
             hasNextPage = false;
             GitHubQueryResponse gitHubQueryResponse = getDependencyManifest(owner, repoName, after);
-            if (gitHubQueryResponse != null) {
-                Repository.DependencyGraphManifests dependencyGraphManifests = gitHubQueryResponse.getData()
-                        .getRepository().getDependencyGraphManifests();
-                if (dependencyGraphManifests != null && dependencyGraphManifests.getNodes() != null &&
-                        dependencyGraphManifests.getNodes().size() > 0) {
-                    for (DependencyGraphManifest dependencyGraphManifest : dependencyGraphManifests.getNodes()) {
-                        DependencyGraphManifest manifest =
-                                new DependencyGraphManifest(dependencyGraphManifest.getBlobPath(),
-                                        dependencyGraphManifest.getDependenciesCount(),
-                                        dependencyGraphManifest.isExceedsMaxSize(),
-                                        dependencyGraphManifest.getFilename());
-                        dependencyGraphManifestMap.put(dependencyGraphManifest.getBlobPath(), manifest);
-                        DependencyGraphManifest.Dependencies dependencies = dependencyGraphManifest.getDependencies();
-                        if (dependencies != null && dependencies.getNodes() != null &&
-                                dependencies.getNodes().size() > 0) {
-                            List<Dependency> dependencyList = dependenciesMap.get(dependencyGraphManifest.getBlobPath());
-                            if (dependencyList == null) {
-                                dependencyList = new ArrayList<>();
-                            }
-                            dependencyList.addAll(dependencies.getNodes());
-                            dependenciesMap.put(dependencyGraphManifest.getBlobPath(), dependencyList);
-                            if (dependencies.getPageInfo().isHasNextPage()) {
-                                hasNextPage = true;
-                                after = dependencies.getPageInfo().getEndCursor();
-                            }
+            Repository.DependencyGraphManifests dependencyGraphManifests = gitHubQueryResponse.getData()
+                    .getRepository().getDependencyGraphManifests();
+            if (dependencyGraphManifests != null && dependencyGraphManifests.getNodes() != null &&
+                    dependencyGraphManifests.getNodes().size() > 0) {
+                for (DependencyGraphManifest dependencyGraphManifest : dependencyGraphManifests.getNodes()) {
+                    DependencyGraphManifest manifest =
+                            new DependencyGraphManifest(dependencyGraphManifest.getBlobPath(),
+                                    dependencyGraphManifest.getDependenciesCount(),
+                                    dependencyGraphManifest.isExceedsMaxSize(),
+                                    dependencyGraphManifest.getFilename());
+                    dependencyGraphManifestMap.put(dependencyGraphManifest.getBlobPath(), manifest);
+                    DependencyGraphManifest.Dependencies dependencies = dependencyGraphManifest.getDependencies();
+                    if (dependencies != null && dependencies.getNodes() != null &&
+                            dependencies.getNodes().size() > 0) {
+                        List<Dependency> dependencyList = dependenciesMap.get(dependencyGraphManifest.getBlobPath());
+                        if (dependencyList == null) {
+                            dependencyList = new ArrayList<>();
+                        }
+                        dependencyList.addAll(dependencies.getNodes());
+                        dependenciesMap.put(dependencyGraphManifest.getBlobPath(), dependencyList);
+                        if (dependencies.getPageInfo().isHasNextPage()) {
+                            hasNextPage = true;
+                            after = dependencies.getPageInfo().getEndCursor();
                         }
                     }
                 }
