@@ -37,7 +37,11 @@
                 vulnerableManifestPath
                 vulnerableRequirements
                 createdAt
+                dismissedAt
                 dismissReason
+                fixedAt
+                fixReason
+                state
                 id
             }
             pageInfo {

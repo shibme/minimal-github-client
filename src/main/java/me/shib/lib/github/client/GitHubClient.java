@@ -119,14 +119,12 @@ public final class GitHubClient {
         while (hasNextPage) {
             GitHubQueryResponse advisoryResponse = getAdvisories(owner, repoName, after);
             hasNextPage = false;
-            if (advisoryResponse != null) {
-                Repository.VulnerabilityAlerts vulnerabilityAlerts = advisoryResponse.getData().getRepository().getVulnerabilityAlerts();
-                if (vulnerabilityAlerts != null && vulnerabilityAlerts.getNodes() != null &&
-                        vulnerabilityAlerts.getNodes().size() > 0) {
-                    vulnerabilityDataList.addAll(vulnerabilityAlerts.getNodes());
-                    hasNextPage = vulnerabilityAlerts.getPageInfo().isHasNextPage();
-                    after = vulnerabilityAlerts.getPageInfo().getEndCursor();
-                }
+            Repository.VulnerabilityAlerts vulnerabilityAlerts = advisoryResponse.getData().getRepository().getVulnerabilityAlerts();
+            if (vulnerabilityAlerts != null && vulnerabilityAlerts.getNodes() != null &&
+                    vulnerabilityAlerts.getNodes().size() > 0) {
+                vulnerabilityDataList.addAll(vulnerabilityAlerts.getNodes());
+                hasNextPage = vulnerabilityAlerts.getPageInfo().isHasNextPage();
+                after = vulnerabilityAlerts.getPageInfo().getEndCursor();
             }
         }
         return vulnerabilityDataList;
