@@ -40,7 +40,6 @@
                 dismissedAt
                 dismissReason
                 fixedAt
-                fixReason
                 state
                 id
             }
